@@ -54,8 +54,6 @@ export default function MetricsPage() {
     }
   }
 
-  const COLORS = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899']
-
   if (loading || !stats) {
     return (
       <DashboardLayout>

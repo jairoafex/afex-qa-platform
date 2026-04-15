@@ -4,8 +4,6 @@ import prisma from '@/lib/prisma'
 
 // Estados que se consideran "aprobados" (activo + legado)
 const APPROVED_STATUSES = ['APPROVED', 'PASSED']
-// Estados que se consideran "ejecutados" (excluye PENDING e IN_PROGRESS)
-const EXECUTED_STATUSES = ['APPROVED', 'PASSED', 'FAILED', 'BLOCKED', 'SKIPPED', 'OUT_OF_SCOPE']
 
 const TEST_TYPE_LABELS: Record<string, string> = {
   FUNCTIONAL: 'Funcional', INTEGRATION: 'Integración', REGRESSION: 'Regresión',

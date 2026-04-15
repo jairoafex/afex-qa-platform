@@ -6,7 +6,6 @@ import { useToast } from '@/lib/toast-context'
 import { 
   Filter,
   RotateCcw,
-  Download, 
   Search,
   Eye,
   Edit2,
@@ -111,39 +110,6 @@ export default function TestCasesPage() {
       showToast('Error al duplicar el escenario', 'error')
     } finally {
       setDuplicating(null)
-    }
-  }
-
-  const handleExport = async (format: string) => {
-    try {
-      const res = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          format,
-          filters,
-        }),
-      })
-
-      if (format === 'json') {
-        const data = await res.json()
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `casos-prueba-${Date.now()}.json`
-        a.click()
-      } else {
-        const blob = await res.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `casos-prueba-${Date.now()}.${format === 'xlsx' ? 'xlsx' : format === 'csv' ? 'csv' : 'feature'}`
-        a.click()
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      showToast('Error al exportar', 'error')
     }
   }
 
