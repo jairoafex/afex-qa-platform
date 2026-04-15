@@ -214,7 +214,7 @@ export default function NewTestCasePage() {
                 <span className="inline-block w-2 h-2 rounded-full bg-gray-400 flex-shrink-0"></span>
                 Por hacer (estado inicial)
               </div>
-              <p className="text-xs text-gray-400 mt-1">Los escenarios siempre inician en "Por hacer"</p>
+              <p className="text-xs text-gray-400 mt-1">Los escenarios siempre inician en &quot;Por hacer&quot;</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-1.5">Prioridad</label>

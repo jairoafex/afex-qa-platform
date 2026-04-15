@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const module = await prisma.module.create({
+    const newModule = await prisma.module.create({
       data: {
         name,
         description,
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: module,
+      data: newModule,
       message: 'Módulo creado exitosamente',
     })
   } catch (error: any) {
