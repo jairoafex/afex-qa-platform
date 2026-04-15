@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 80" fill="none">
+  <!-- AFEX text in dark green -->
+  <text x="0" y="68" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="78" fill="#034e30" letter-spacing="-2">AFEX</text>
+  <!-- Small green square dot above the X -->
+  <rect x="234" y="2" width="14" height="14" rx="1.5" fill="#2ecc40"/>
+</svg>

@@ -1,0 +1,1135 @@
+{
+  "info": {
+    "_postman_id": "qa-platform-afex",
+    "name": "QA Platform AFEX",
+    "description": "## Setup rápido (2 pasos)\n\n**1. Agrega en tu `.env.local`:**\n```\nAPI_KEY=mi-clave-secreta-aqui\n```\nReinicia el servidor.\n\n**2. En Postman:**\n- Ve a la colección → Edit → Variables\n- Pon tu clave en `apiKey`\n- ¡Listo! Todos los requests se autenticarán automáticamente.\n\n---\n\n## Sobre los IDs en las respuestas\n\nCada registro tiene dos identificadores:\n- **`id`** → ID interno de la BD (cuid). Se usa en las URLs de los endpoints.\n- **`jiraTask` / `caseId`** → Identificador legible (ej: `CCUM-5802`, `TC-001`). Es lo que reconoces.\n\nEjemplo de respuesta:\n```json\n{\n  \"id\": \"cmm9ozee40001wy8g2ayhiybe\",   ← usa este en las URLs\n  \"jiraTask\": \"CCUM-5802\",              ← este es el que ves en JIRA\n  \"caseId\": \"TC-001\"                    ← identificador del escenario\n}\n```\n\nLos scripts de Test de cada request guardan el `id` automáticamente en `{{testPlanId}}` / `{{testCaseId}}`.\n\n## Trazabilidad en Network tab\nTodos los requests que hace la app son visibles en:\nChrome DevTools → **Network** → Filtrar por **Fetch/XHR**",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Agrega automáticamente el Bearer token a todos los requests",
+          "const apiKey = pm.collectionVariables.get('apiKey');",
+          "if (apiKey) {",
+          "  pm.request.headers.upsert({",
+          "    key: 'Authorization',",
+          "    value: 'Bearer ' + apiKey",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string",
+      "description": "Valor de API_KEY definido en .env.local"
+    },
+    {
+      "key": "testPlanId",
+      "value": "",
+      "type": "string",
+      "description": "Se rellena automáticamente al crear un Caso de Prueba"
+    },
+    {
+      "key": "testCaseId",
+      "value": "",
+      "type": "string",
+      "description": "Se rellena automáticamente al crear un Escenario"
+    },
+    {
+      "key": "celulaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "developerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "qaId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth (solo sin apiKey)",
+      "description": "Solo necesitas esto si no usas API_KEY. Con apiKey configurado, sáltate esta sección.",
+      "item": [
+        {
+          "name": "1. Obtener CSRF Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.csrfToken) {",
+                  "  pm.collectionVariables.set('csrfToken', res.csrfToken);",
+                  "  console.log('csrfToken guardado');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/csrf",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "csrf"]
+            },
+            "description": "Ejecuta primero para obtener el csrfToken necesario en el Login."
+          }
+        },
+        {
+          "name": "2. Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "csrfToken", "value": "{{csrfToken}}", "type": "text" },
+                { "key": "email", "value": "admin@afex.com", "type": "text" },
+                { "key": "password", "value": "Admin123!", "type": "text" },
+                { "key": "callbackUrl", "value": "/dashboard", "type": "text" },
+                { "key": "json", "value": "true", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/callback/credentials",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "callback", "credentials"]
+            },
+            "description": "NextAuth guarda la cookie de sesión automáticamente en Postman."
+          }
+        },
+        {
+          "name": "Verificar sesión activa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "session"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Casos de Prueba (Test Plans)",
+      "item": [
+        {
+          "name": "Listar Casos de Prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/casos?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "status", "value": "IN_PROGRESS", "disabled": true, "description": "CREATED | IN_PROGRESS | COMPLETED | CANCELLED" },
+                { "key": "search", "value": "", "disabled": true, "description": "Busca por jiraTask o descripción" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Caso de Prueba (por id interno)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/casos/{{testPlanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos", "{{testPlanId}}"],
+              "description": "Usa {{testPlanId}} que se guarda automáticamente al crear un caso."
+            }
+          }
+        },
+        {
+          "name": "Crear Caso de Prueba",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('testPlanId', res.data.id);",
+                  "  console.log('✅ testPlanId:', res.data.id, '| jiraTask:', res.data.jiraTask);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jiraTask\": \"AFEX-9999\",\n  \"description\": \"Descripción del caso de prueba\",\n  \"epic\": \"AFEX-EPIC-001\",\n  \"celulaId\": \"{{celulaId}}\",\n  \"developerId\": \"{{developerId}}\",\n  \"qaId\": \"{{qaId}}\",\n  \"relatedJiraTasks\": [\"AFEX-1000\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/casos",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos"]
+            },
+            "description": "El ID interno del plan creado se guarda automáticamente en {{testPlanId}}."
+          }
+        },
+        {
+          "name": "Actualizar Caso de Prueba",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jiraTask\": \"AFEX-9999\",\n  \"description\": \"Descripción actualizada\",\n  \"epic\": \"AFEX-EPIC-002\",\n  \"status\": \"IN_PROGRESS\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/casos/{{testPlanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos", "{{testPlanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Caso de Prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/casos/{{testPlanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos", "{{testPlanId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Escenarios de Prueba (Test Cases)",
+      "item": [
+        {
+          "name": "Listar Escenarios",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "testPlanId", "value": "{{testPlanId}}", "disabled": true, "description": "Filtra escenarios de un plan específico" },
+                { "key": "status", "value": "", "disabled": true, "description": "PENDING | IN_PROGRESS | FAILED | BLOCKED | OUT_OF_SCOPE" },
+                { "key": "priority", "value": "", "disabled": true, "description": "LOW | MEDIUM | HIGH | CRITICAL" },
+                { "key": "search", "value": "", "disabled": true, "description": "Busca por caseId (TC-001) o nombre" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Escenario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases/{{testCaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases", "{{testCaseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Crear Escenario de Prueba",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('testCaseId', res.data.id);",
+                  "  console.log('✅ testCaseId:', res.data.id, '| caseId:', res.data.caseId, '| plan:', res.data.testPlan?.jiraTask);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Validar login exitoso\",\n  \"description\": \"El usuario puede iniciar sesión con credenciales válidas\",\n  \"steps\": \"1. Ir a /login\\n2. Ingresar email y contraseña válidos\\n3. Hacer clic en Ingresar\",\n  \"observations\": \"Probar en Chrome y Firefox\",\n  \"priority\": \"HIGH\",\n  \"status\": \"PENDING\",\n  \"testPlanId\": \"{{testPlanId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases"]
+            },
+            "description": "**status:** PENDING | IN_PROGRESS | FAILED | BLOCKED | OUT_OF_SCOPE\n**priority:** LOW | MEDIUM | HIGH | CRITICAL\n\nEl `caseId` (TC-001, TC-002...) se genera automáticamente en el servidor."
+          }
+        },
+        {
+          "name": "Actualizar Escenario",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Validar login exitoso (actualizado)\",\n  \"status\": \"IN_PROGRESS\",\n  \"priority\": \"HIGH\",\n  \"observations\": \"Verificado en Chrome v120\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases/{{testCaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases", "{{testCaseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Escenario",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases/{{testCaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases", "{{testCaseId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Células",
+      "item": [
+        {
+          "name": "Listar Células",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/celulas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "celulas"]
+            }
+          }
+        },
+        {
+          "name": "Crear Célula",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) pm.collectionVariables.set('celulaId', res.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Célula Pagos\",\n  \"description\": \"Equipo de pagos internacionales\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/celulas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "celulas"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Desarrolladores & QAs",
+      "item": [
+        {
+          "name": "Listar Desarrolladores (por célula)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/developers?celulaId={{celulaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "developers"],
+              "query": [{ "key": "celulaId", "value": "{{celulaId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Crear Desarrollador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) pm.collectionVariables.set('developerId', res.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Juan Pérez\",\n  \"email\": \"juan@afex.com\",\n  \"celulaId\": \"{{celulaId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/developers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "developers"]
+            }
+          }
+        },
+        {
+          "name": "Listar QAs (por célula)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/qas?celulaId={{celulaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "qas"],
+              "query": [{ "key": "celulaId", "value": "{{celulaId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Crear QA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) pm.collectionVariables.set('qaId', res.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"María QA\",\n  \"email\": \"maria.qa@afex.com\",\n  \"celulaId\": \"{{celulaId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/qas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "qas"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard & Exportar",
+      "item": [
+        {
+          "name": "Stats del Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Exportar Excel",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"xlsx\",\n  \"filters\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "export"]
+            },
+            "description": "En Postman: Send → guarda la respuesta como archivo `.xlsx`."
+          }
+        },
+        {
+          "name": "Exportar CSV",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"csv\",\n  \"filters\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "export"]
+            }
+          }
+        },
+        {
+          "name": "Subir Evidencia",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" },
+                { "key": "testCaseId", "value": "{{testCaseId}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+    "_postman_id": "qa-platform-afex",
+    "name": "QA Platform AFEX",
+    "description": "Colección de endpoints para la plataforma QA AFEX.\n\n**Setup inicial:**\n1. Ejecuta `POST /auth/login` con tus credenciales\n2. La variable `{{token}}` se guarda automáticamente en las cookies de sesión de NextAuth (jwt)\n3. Todos los demás endpoints requieren tener la cookie de sesión activa\n\n**Variables de entorno:**\n- `baseUrl`: http://localhost:3000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "testPlanId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testCaseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "celulaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "developerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "qaId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// La cookie de sesión se guarda automáticamente en Postman",
+                  "pm.test('Login exitoso', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"csrfToken\": \"\",\n  \"email\": \"admin@afex.com\",\n  \"password\": \"Admin123!\",\n  \"callbackUrl\": \"/dashboard\",\n  \"json\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/callback/credentials",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "callback", "credentials"]
+            },
+            "description": "Inicia sesión. NextAuth guarda la cookie de sesión automáticamente."
+          }
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "session"]
+            },
+            "description": "Verifica la sesión activa."
+          }
+        },
+        {
+          "name": "Get CSRF Token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/csrf",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "csrf"]
+            },
+            "description": "Obtiene el token CSRF necesario para el login."
+          }
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nuevo Usuario\",\n  \"email\": \"nuevo@afex.com\",\n  \"password\": \"Password123!\",\n  \"role\": \"QA\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Casos de Prueba (Test Plans)",
+      "item": [
+        {
+          "name": "Listar Casos de Prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/casos?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "status", "value": "", "disabled": true, "description": "CREATED | IN_PROGRESS | COMPLETED | CANCELLED" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Caso de Prueba",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/casos/{{testPlanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos", "{{testPlanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Crear Caso de Prueba",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('testPlanId', res.data.id);",
+                  "  console.log('testPlanId guardado:', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jiraTask\": \"AFEX-9999\",\n  \"description\": \"Descripción del caso de prueba\",\n  \"epic\": \"AFEX-EPIC-001\",\n  \"celulaId\": \"{{celulaId}}\",\n  \"developerId\": \"{{developerId}}\",\n  \"qaId\": \"{{qaId}}\",\n  \"relatedJiraTasks\": [\"AFEX-1000\", \"AFEX-1001\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/casos",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos"]
+            },
+            "description": "Crea un nuevo caso de prueba. Guarda automáticamente el ID en {{testPlanId}}."
+          }
+        },
+        {
+          "name": "Actualizar Caso de Prueba",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jiraTask\": \"AFEX-9999\",\n  \"description\": \"Descripción actualizada\",\n  \"epic\": \"AFEX-EPIC-002\",\n  \"status\": \"IN_PROGRESS\",\n  \"celulaId\": \"{{celulaId}}\",\n  \"developerId\": \"{{developerId}}\",\n  \"qaId\": \"{{qaId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/casos/{{testPlanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos", "{{testPlanId}}"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Caso de Prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/casos/{{testPlanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "casos", "{{testPlanId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Escenarios de Prueba (Test Cases)",
+      "item": [
+        {
+          "name": "Listar Escenarios",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" },
+                { "key": "testPlanId", "value": "{{testPlanId}}", "disabled": true },
+                { "key": "status", "value": "", "disabled": true, "description": "PENDING | IN_PROGRESS | FAILED | BLOCKED | OUT_OF_SCOPE" },
+                { "key": "priority", "value": "", "disabled": true, "description": "LOW | MEDIUM | HIGH | CRITICAL" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar Escenarios por Plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases?testPlanId={{testPlanId}}&pageSize=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases"],
+              "query": [
+                { "key": "testPlanId", "value": "{{testPlanId}}" },
+                { "key": "pageSize", "value": "100" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener Escenario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases/{{testCaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases", "{{testCaseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Crear Escenario de Prueba",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('testCaseId', res.data.id);",
+                  "  console.log('testCaseId guardado:', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Validar login exitoso\",\n  \"description\": \"Verificar que el usuario puede iniciar sesión con credenciales válidas\",\n  \"steps\": \"1. Ir a la página de login\\n2. Ingresar email y contraseña válidos\\n3. Hacer clic en Ingresar\",\n  \"observations\": \"Probar en Chrome y Firefox\",\n  \"priority\": \"HIGH\",\n  \"status\": \"PENDING\",\n  \"dependsOnCaseId\": null,\n  \"testPlanId\": \"{{testPlanId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases"]
+            },
+            "description": "status: PENDING | IN_PROGRESS | FAILED | BLOCKED | OUT_OF_SCOPE\npriority: LOW | MEDIUM | HIGH | CRITICAL"
+          }
+        },
+        {
+          "name": "Actualizar Escenario",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Validar login exitoso (actualizado)\",\n  \"description\": \"Descripción actualizada\",\n  \"steps\": \"1. Paso actualizado\\n2. Otro paso\",\n  \"observations\": \"Observación agregada\",\n  \"priority\": \"HIGH\",\n  \"status\": \"IN_PROGRESS\",\n  \"dependsOnCaseId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases/{{testCaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases", "{{testCaseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Eliminar Escenario",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/test-cases/{{testCaseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "test-cases", "{{testCaseId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Células",
+      "item": [
+        {
+          "name": "Listar Células",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/celulas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "celulas"]
+            }
+          }
+        },
+        {
+          "name": "Obtener Célula",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/celulas/{{celulaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "celulas", "{{celulaId}}"]
+            }
+          }
+        },
+        {
+          "name": "Crear Célula",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('celulaId', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Célula Pagos\",\n  \"description\": \"Equipo de pagos internacionales\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/celulas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "celulas"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Desarrolladores",
+      "item": [
+        {
+          "name": "Listar Desarrolladores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/developers?celulaId={{celulaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "developers"],
+              "query": [
+                { "key": "celulaId", "value": "{{celulaId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear Desarrollador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('developerId', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Juan Pérez\",\n  \"email\": \"juan@afex.com\",\n  \"celulaId\": \"{{celulaId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/developers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "developers"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "QAs",
+      "item": [
+        {
+          "name": "Listar QAs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/qas?celulaId={{celulaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "qas"],
+              "query": [
+                { "key": "celulaId", "value": "{{celulaId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear QA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('qaId', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"María QA\",\n  \"email\": \"maria.qa@afex.com\",\n  \"celulaId\": \"{{celulaId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/qas",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "qas"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard & Export",
+      "item": [
+        {
+          "name": "Stats del Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dashboard/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dashboard", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Exportar Excel (XLSX)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"xlsx\",\n  \"filters\": {\n    \"testPlanId\": \"\",\n    \"status\": \"\",\n    \"priority\": \"\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "export"]
+            },
+            "description": "Descarga el archivo binario. En Postman: Send → Save Response → Save to file."
+          }
+        },
+        {
+          "name": "Exportar CSV",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"csv\",\n  \"filters\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "export"]
+            }
+          }
+        },
+        {
+          "name": "Exportar Feature (Gherkin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"feature\",\n  \"filters\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "export"]
+            }
+          }
+        },
+        {
+          "name": "Upload Evidencia",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" },
+                { "key": "testCaseId", "value": "{{testCaseId}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

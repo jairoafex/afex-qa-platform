@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String      @id @default(cuid())
+  email      String      @unique
+  name       String
+  password   String
+  role       String      @default("QA")
+  avatar     String?
+  googleId   String?     @unique
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  lastLogin  DateTime?
+  changeLogs ChangeLog[]
+  comments   Comment[]
+  testCases  TestCase[]
+  testPlans  TestPlan[]
+
+  @@map("users")
+}
+
+model System {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  color       String?
+  icon        String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  modules     Module[]
+  testPlans   TestPlan[]
+
+  @@map("systems")
+}
+
+model Module {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  systemId    String
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  components  Component[]
+  system      System      @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  testCases   TestCase[]
+  testPlans   TestPlan[]
+
+  @@unique([systemId, name])
+  @@map("modules")
+}
+
+model Component {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  moduleId    String
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  module      Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  testCases   TestCase[]
+
+  @@map("components")
+}
+
+model Service {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  endpoint    String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  testCases   TestCase[]
+
+  @@map("services")
+}
+
+model TestPlan {
+  id               String      @id @default(cuid())
+  jiraTask         String
+  title            String?     // Título corto (summary de Jira)
+  description      String
+  epic             String?
+  systemId         String?
+  moduleId         String?
+  userId           String
+  celulaId         String?
+  developerId      String?
+  qaId             String?
+  jiraAssignee     String?     // Nombre del asignado en Jira (texto libre)
+  jiraCelula       String?     // Nombre del proyecto/célula en Jira (texto libre)
+  relatedJiraTasks String?
+  status           String      @default("CREATED")
+  totalCases       Int         @default(0)
+  completedCases   Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  priority         String?     @default("MEDIUM")
+  testCases        TestCase[]
+  qaEngineer       QAEngineer? @relation(fields: [qaId], references: [id])
+  developer        Developer?  @relation(fields: [developerId], references: [id])
+  celula           Celula?     @relation(fields: [celulaId], references: [id])
+  user             User        @relation(fields: [userId], references: [id])
+  module           Module?     @relation(fields: [moduleId], references: [id])
+  system           System?     @relation(fields: [systemId], references: [id])
+
+  @@index([systemId, status])
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("test_plans")
+}
+
+model TestCase {
+  id              String       @id @default(cuid())
+  caseId          String
+  name            String
+  description     String?
+  preconditions   String?
+  steps           String?
+  expectedResult  String?
+  actualResult    String?
+  observations    String?
+  priority        String       @default("MEDIUM")
+  testType        String       @default("FUNCTIONAL")
+  status          String       @default("PENDING")
+  platform        String?
+  testPlanId      String
+  systemId        String?
+  moduleId        String?
+  componentId     String?
+  serviceId       String?
+  gherkinScenario String?
+  userId          String
+  dependsOnCaseId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  executedAt      DateTime?
+  finalResult     String?
+  tags            String?
+  attachments     Attachment[]
+  changeLogs      ChangeLog[]
+  comments        Comment[]
+  dependsOnCase   TestCase?    @relation("TestCaseDependencies", fields: [dependsOnCaseId], references: [id])
+  dependentCases  TestCase[]   @relation("TestCaseDependencies")
+  user            User         @relation(fields: [userId], references: [id])
+  service         Service?     @relation(fields: [serviceId], references: [id])
+  component       Component?   @relation(fields: [componentId], references: [id])
+  module          Module?      @relation(fields: [moduleId], references: [id])
+  testPlan        TestPlan     @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([testPlanId, caseId])
+  @@index([testPlanId])
+  @@index([status])
+  @@index([systemId, moduleId])
+  @@index([executedAt])
+  @@index([createdAt])
+  @@index([testPlanId, status])
+  @@index([userId, createdAt])
+  @@index([status, priority])
+  @@index([testType, status])
+  @@map("test_cases")
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  fileName   String
+  fileType   String
+  fileSize   Int
+  filePath   String
+  testCaseId String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  content    String
+  testCaseId String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id])
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model ChangeLog {
+  id         String   @id @default(cuid())
+  message    String
+  testCaseId String
+  userId     String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@index([testCaseId])
+  @@index([createdAt])
+  @@map("change_logs")
+}
+
+model Configuration {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      String
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("configurations")
+}
+
+model Developer {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  email     String?
+  area      String?
+  celulaId  String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  celula    Celula?    @relation(fields: [celulaId], references: [id])
+  testPlans TestPlan[]
+
+  @@map("developers")
+}
+
+model Celula {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  developers  Developer[]
+  qaEngineers QAEngineer[]
+  testPlans   TestPlan[]
+
+  @@map("celulas")
+}
+
+model QAEngineer {
+  id        String     @id @default(cuid())
+  name      String
+  email     String?
+  celulaId  String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  celula    Celula?    @relation(fields: [celulaId], references: [id])
+  testPlans TestPlan[]
+
+  @@map("qa_engineers")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  changes   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
